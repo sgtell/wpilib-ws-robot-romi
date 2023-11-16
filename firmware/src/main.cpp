@@ -2,7 +2,7 @@
 
 #include <PololuRPiSlave.h>
 #include <Romi32U4.h>
-#include <ServoT3.h>
+#include "ServoT3.h"
 
 #include "shmem_buffer.h"
 #include "low_voltage_helper.h"
@@ -222,6 +222,7 @@ void testModeLoop() {
 
 void normalModeLoop() {
   uint16_t battMV = readBatteryMillivolts();
+  uint8_t heartbeat_ok;
   lvHelper.update(battMV);
 
   // Play the LV alert tune if we're in a low voltage state
@@ -237,7 +238,9 @@ void normalModeLoop() {
   if (millis() - lastHeartbeat > 1000) {
     rPiLink.buffer.leftMotor = 0;
     rPiLink.buffer.rightMotor = 0;
-  }
+    heartbeat_ok = 0;
+  } else
+    heartbeat_ok = 1;
 
   if (rPiLink.buffer.heartbeat) {
     lastHeartbeat = millis();
@@ -289,12 +292,13 @@ void normalModeLoop() {
       case kModePwm: {
         // Only allow writes to PWM if we're not currently locked out due to low voltage
         if (pwms[i].attached()) {
-          if (!lvHelper.isLowVoltage()) {
+          if (!lvHelper.isLowVoltage() && heartbeat_ok) {
             pwms[i].write(map(rPiLink.buffer.extIoValues[i], -400, 400, 0, 180));
           }
           else {
-            // Attempt to zero out servo-motors in a low voltage mode
-            pwms[i].write(90);
+            // Attempt to zero out servo-motors in a low voltage mode or heartbeat loss
+//            pwms[i].write(90);
+		  pwms[i].writeMicroseconds(1500);
           }
         }
       } break;
